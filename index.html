@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TDS Traffic - Traffic Analysis Tool</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #eee; min-height: 100vh; }
+        
+        .header { background: rgba(0,0,0,0.3); padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .header h1 { color: #4ecca3; font-size: 1.4em; }
+        .header-info { color: #888; font-size: 0.9em; }
+        
+        .container { display: flex; height: calc(100vh - 60px); }
+        
+        .canvas-panel { flex: 1; position: relative; overflow: hidden; background: #0a0a14; display: flex; align-items: center; justify-content: center; }
+        #canvas { cursor: crosshair; display: block; max-width: 100%; max-height: 100%; }
+        
+        .sidebar { width: 420px; background: rgba(0,0,0,0.2); display: flex; flex-direction: column; border-left: 1px solid rgba(255,255,255,0.1); overflow-y: auto; max-height: calc(100vh - 60px); }
+        
+        .sidebar-section { padding: 15px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); flex-shrink: 0; }
+        .sidebar-section h2 { color: #4ecca3; font-size: 1em; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+        
+        .upload-area { border: 2px dashed rgba(78,204,163,0.5); border-radius: 10px; padding: 30px 20px; text-align: center; cursor: pointer; transition: all 0.3s; margin-bottom: 15px; }
+        .upload-area:hover { border-color: #4ecca3; background: rgba(78,204,163,0.1); }
+        .upload-area.dragover { border-color: #4ecca3; background: rgba(78,204,163,0.2); }
+        .upload-area .icon { font-size: 2.5em; margin-bottom: 10px; }
+        .upload-area p { color: #888; font-size: 0.9em; }
+        .upload-area input { display: none; }
+        
+        .file-status { display: flex; align-items: center; gap: 10px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 6px; margin-bottom: 8px; }
+        .file-status .icon { font-size: 1.2em; }
+        .file-status .name { flex: 1; font-size: 0.85em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .file-status .check { color: #4ecca3; }
+        .file-status .pending { color: #888; }
+        
+        .mode-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .mode-btn { padding: 15px 10px; background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1); border-radius: 8px; color: #888; cursor: pointer; text-align: center; transition: all 0.2s; }
+        .mode-btn:hover { border-color: rgba(78,204,163,0.5); color: #ccc; }
+        .mode-btn.active { border-color: #4ecca3; background: rgba(78,204,163,0.1); color: #4ecca3; }
+        .mode-btn h3 { font-size: 1.1em; margin-bottom: 4px; }
+        .mode-btn p { font-size: 0.75em; opacity: 0.8; }
+        
+        .btn { padding: 10px 18px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.9em; transition: all 0.2s; margin: 3px; }
+        .btn-primary { background: #4ecca3; color: #1a1a2e; }
+        .btn-primary:hover { background: #3db892; }
+        .btn-secondary { background: rgba(255,255,255,0.1); color: #fff; }
+        .btn-secondary:hover { background: rgba(255,255,255,0.2); }
+        .btn-full { width: 100%; padding: 14px; font-size: 1em; }
+        
+        .line-list { max-height: 180px; overflow-y: auto; margin: 10px 0; }
+        .line-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: rgba(0,0,0,0.2); border-radius: 6px; margin-bottom: 6px; }
+        .line-color { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+        .line-item input { flex: 1; padding: 6px 8px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: #fff; font-size: 0.85em; }
+        
+        .results-panel { flex: 1; overflow-y: auto; padding: 15px 20px; }
+        .summary-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+        .summary-card { background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; text-align: center; }
+        .summary-card .value { font-size: 1.8em; color: #4ecca3; font-weight: bold; }
+        .summary-card .label { font-size: 0.75em; color: #888; margin-top: 4px; }
+        
+        .hint { color: #f1c40f; font-size: 0.85em; margin: 10px 0; padding: 8px; background: rgba(241,196,15,0.1); border-radius: 4px; }
+        .info { color: #3498db; font-size: 0.85em; margin: 10px 0; padding: 8px; background: rgba(52,152,219,0.1); border-radius: 4px; }
+        
+        .study-info { margin-top: 10px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 6px; font-size: 0.85em; }
+        .study-info div { margin: 4px 0; }
+        .study-info span { color: #4ecca3; }
+        
+        .hidden { display: none !important; }
+        
+        .welcome-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(10,10,20,0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 40px; }
+        .welcome-overlay h2 { color: #4ecca3; font-size: 1.8em; margin-bottom: 15px; }
+        .welcome-overlay p { color: #888; font-size: 1em; max-width: 400px; line-height: 1.6; }
+        .welcome-overlay .arrow { font-size: 3em; color: #4ecca3; margin-top: 30px; animation: bounce 1s infinite; }
+        @keyframes bounce { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(10px); } }
+
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚗 TDS Traffic Analysis</h1>
+        <div class="header-info">app.tdstraffic.com</div>
+    </div>
+    
+    <div class="container">
+        <div class="canvas-panel">
+            <canvas id="canvas" width="720" height="480"></canvas>
+            <div class="welcome-overlay" id="welcomeOverlay">
+                <h2>Welcome to Traffic Analysis</h2>
+                <p>Upload your GeoJSON track data and PNG overlay image to begin analyzing traffic patterns, turning movements, and vehicle classifications.</p>
+                <div class="arrow">→</div>
+            </div>
+        </div>
+        
+        <div class="sidebar">
+            <div class="sidebar-section">
+                <h2>📤 Upload Files</h2>
+                
+                <div class="upload-area" id="geojsonUpload" onclick="document.getElementById('geojsonInput').click()">
+                    <div class="icon">📊</div>
+                    <p><b>GeoJSON Track File</b><br>combined_tracks.geojson</p>
+                    <input type="file" id="geojsonInput" accept=".geojson,.json" onchange="handleGeojsonUpload(event)">
+                </div>
+                
+                <div class="upload-area" id="pngUpload" onclick="document.getElementById('pngInput').click()">
+                    <div class="icon">🖼️</div>
+                    <p><b>Background Image</b><br>overlay.png or trajectories.png</p>
+                    <input type="file" id="pngInput" accept=".png,.jpg,.jpeg" onchange="handleImageUpload(event)">
+                </div>
+                
+                <div id="fileStatus" class="hidden">
+                    <div class="file-status">
+                        <span class="icon">📊</span>
+                        <span class="name" id="geojsonName">No file</span>
+                        <span class="pending" id="geojsonCheck">○</span>
+                    </div>
+                    <div class="file-status">
+                        <span class="icon">🖼️</span>
+                        <span class="name" id="pngName">No file</span>
+                        <span class="pending" id="pngCheck">○</span>
+                    </div>
+                </div>
+                
+                <div id="studyInfo" class="study-info hidden">
+                    <div><b>Tracks:</b> <span id="trackCount">0</span></div>
+                    <div><b>Duration:</b> <span id="studyDuration">-</span></div>
+                    <div><b>Vehicles:</b> <span id="vehicleTypes">-</span></div>
+                </div>
+            </div>
+            
+            <div class="sidebar-section">
+                <h2>📊 Analysis Mode</h2>
+                <div class="mode-buttons">
+                    <div class="mode-btn active" onclick="setMode('atr', this)">
+                        <h3>ATR</h3>
+                        <p>Volume & Class<br>Road Segment</p>
+                    </div>
+                    <div class="mode-btn" onclick="setMode('tmc', this)">
+                        <h3>TMC</h3>
+                        <p>Line-Based<br>Intersection</p>
+                    </div>
+                    <div class="mode-btn" onclick="setMode('tmc_template', this)">
+                        <h3>TMC+</h3>
+                        <p>Template Match<br>Intersection</p>
+                    </div>
+                    <div class="mode-btn" onclick="setMode('tmc_approach', this)">
+                        <h3>TMC-A</h3>
+                        <p>Per-Approach<br>Split View</p>
+                    </div>
+                </div>
+                <div class="hint" id="modeHint">Draw lines across road segments. Each line counts vehicles in both directions.</div>
+            </div>
+            
+            <div class="sidebar-section" id="linesSection">
+                <h2>📏 Lines <span id="lineCount" style="color:#888; font-weight:normal;">(0)</span></h2>
+                <div class="info">Click on the image to draw counting lines. Each line will count vehicles crossing in both directions.</div>
+                <div class="line-list" id="lineList">
+                    <!-- Lines will appear here -->
+                </div>
+                <button class="btn btn-secondary" onclick="clearLines()">Clear All Lines</button>
+            </div>
+            
+            <div class="sidebar-section">
+                <button class="btn btn-primary btn-full" id="analyzeBtn" onclick="runAnalysis()" disabled>
+                    ▶ Run Analysis
+                </button>
+            </div>
+            
+            <div class="results-panel hidden" id="resultsPanel">
+                <h2 style="color:#4ecca3; margin-bottom:15px;">📈 Results</h2>
+                <div class="summary-cards">
+                    <div class="summary-card">
+                        <div class="value" id="totalVehicles">0</div>
+                        <div class="label">Total Vehicles</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="value" id="peakHour">-</div>
+                        <div class="label">Peak Hour</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="value" id="avgSpeed">-</div>
+                        <div class="label">Avg Speed</div>
+                    </div>
+                </div>
+                <div style="display:flex; gap:10px; margin-top:15px;">
+                    <button class="btn btn-secondary" onclick="exportCSV()">📥 Export CSV</button>
+                    <button class="btn btn-secondary" onclick="exportPDF()">📄 Export PDF</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let geojsonData = null;
+        let backgroundImage = null;
+        let lines = [];
+        let currentMode = 'atr';
+        let isDrawing = false;
+        let startPoint = null;
+        
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Draw initial state
+        drawCanvas();
+        
+        function handleGeojsonUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            document.getElementById('fileStatus').classList.remove('hidden');
+            document.getElementById('geojsonName').textContent = file.name;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    geojsonData = JSON.parse(e.target.result);
+                    document.getElementById('geojsonCheck').textContent = '✓';
+                    document.getElementById('geojsonCheck').className = 'check';
+                    document.getElementById('geojsonUpload').style.borderColor = '#4ecca3';
+                    
+                    // Update study info
+                    const features = geojsonData.features || [];
+                    document.getElementById('trackCount').textContent = features.length.toLocaleString();
+                    document.getElementById('studyInfo').classList.remove('hidden');
+                    
+                    // Count vehicle types
+                    const classes = {};
+                    features.forEach(f => {
+                        const cls = f.properties?.class_name || 'unknown';
+                        classes[cls] = (classes[cls] || 0) + 1;
+                    });
+                    const topClasses = Object.entries(classes).sort((a,b) => b[1]-a[1]).slice(0,3);
+                    document.getElementById('vehicleTypes').textContent = topClasses.map(([k,v]) => `${k}: ${v}`).join(', ');
+                    
+                    checkReady();
+                    drawCanvas();
+                } catch (err) {
+                    alert('Error parsing GeoJSON: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+        
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            document.getElementById('fileStatus').classList.remove('hidden');
+            document.getElementById('pngName').textContent = file.name;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                backgroundImage = new Image();
+                backgroundImage.onload = function() {
+                    canvas.width = backgroundImage.width;
+                    canvas.height = backgroundImage.height;
+                    
+                    document.getElementById('pngCheck').textContent = '✓';
+                    document.getElementById('pngCheck').className = 'check';
+                    document.getElementById('pngUpload').style.borderColor = '#4ecca3';
+                    document.getElementById('welcomeOverlay').classList.add('hidden');
+                    
+                    checkReady();
+                    drawCanvas();
+                };
+                backgroundImage.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        function checkReady() {
+            const ready = geojsonData && backgroundImage;
+            document.getElementById('analyzeBtn').disabled = !ready;
+        }
+        
+        function setMode(mode, btn) {
+            currentMode = mode;
+            document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            
+            const hints = {
+                'atr': 'Draw lines across road segments. Each line counts vehicles in both directions.',
+                'tmc': 'Draw 4 ORIGIN lines (red) and 4 DESTINATION lines (green) for turning movement counts.',
+                'tmc_template': 'Draw a polygon around the intersection, then select approach labels.',
+                'tmc_approach': 'Draw lines for each approach to get per-direction split analysis.'
+            };
+            document.getElementById('modeHint').textContent = hints[mode] || hints['atr'];
+        }
+        
+        function drawCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw background
+            if (backgroundImage) {
+                ctx.drawImage(backgroundImage, 0, 0);
+            } else {
+                ctx.fillStyle = '#1a1a2e';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#333';
+                ctx.font = '16px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('Upload an image to begin', canvas.width/2, canvas.height/2);
+            }
+            
+            // Draw tracks if loaded
+            if (geojsonData && geojsonData.features) {
+                ctx.globalAlpha = 0.6;
+                const dirColors = {
+                    'northbound': '#00ff00',
+                    'southbound': '#ff0000',
+                    'eastbound': '#ff8800',
+                    'westbound': '#ffff00'
+                };
+                
+                geojsonData.features.forEach(feature => {
+                    const coords = feature.geometry?.coordinates || [];
+                    if (coords.length < 2) return;
+                    
+                    const dir = feature.properties?.direction || 'unknown';
+                    ctx.strokeStyle = dirColors[dir] || '#888888';
+                    ctx.lineWidth = 1;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(coords[0][0], coords[0][1]);
+                    for (let i = 1; i < coords.length; i++) {
+                        ctx.lineTo(coords[i][0], coords[i][1]);
+                    }
+                    ctx.stroke();
+                });
+                ctx.globalAlpha = 1.0;
+            }
+            
+            // Draw lines
+            lines.forEach((line, i) => {
+                ctx.strokeStyle = line.color || '#4ecca3';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(line.x1, line.y1);
+                ctx.lineTo(line.x2, line.y2);
+                ctx.stroke();
+                
+                // Label
+                const mx = (line.x1 + line.x2) / 2;
+                const my = (line.y1 + line.y2) / 2;
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 12px sans-serif';
+                ctx.fillText(line.label || `Line ${i+1}`, mx, my - 8);
+            });
+        }
+        
+        // Canvas mouse events
+        canvas.addEventListener('mousedown', function(e) {
+            if (!backgroundImage) return;
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+            const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+            isDrawing = true;
+            startPoint = {x, y};
+        });
+        
+        canvas.addEventListener('mousemove', function(e) {
+            if (!isDrawing || !startPoint) return;
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+            const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+            
+            drawCanvas();
+            ctx.strokeStyle = '#4ecca3';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(startPoint.x, startPoint.y);
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        });
+        
+        canvas.addEventListener('mouseup', function(e) {
+            if (!isDrawing || !startPoint) return;
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+            const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+            
+            const dist = Math.sqrt(Math.pow(x - startPoint.x, 2) + Math.pow(y - startPoint.y, 2));
+            if (dist > 20) {
+                lines.push({
+                    x1: startPoint.x, y1: startPoint.y,
+                    x2: x, y2: y,
+                    label: `Line ${lines.length + 1}`,
+                    color: '#4ecca3'
+                });
+                updateLineList();
+            }
+            
+            isDrawing = false;
+            startPoint = null;
+            drawCanvas();
+        });
+        
+        function updateLineList() {
+            const list = document.getElementById('lineList');
+            document.getElementById('lineCount').textContent = `(${lines.length})`;
+            
+            list.innerHTML = lines.map((line, i) => `
+                <div class="line-item">
+                    <div class="line-color" style="background:${line.color}"></div>
+                    <input type="text" value="${line.label}" onchange="lines[${i}].label=this.value; drawCanvas();">
+                    <button class="delete-btn" onclick="deleteLine(${i})">×</button>
+                </div>
+            `).join('');
+        }
+        
+        function deleteLine(index) {
+            lines.splice(index, 1);
+            updateLineList();
+            drawCanvas();
+        }
+        
+        function clearLines() {
+            lines = [];
+            updateLineList();
+            drawCanvas();
+        }
+        
+        function runAnalysis() {
+            if (!geojsonData || lines.length === 0) {
+                alert('Please upload files and draw at least one line');
+                return;
+            }
+            
+            // Simulate analysis
+            document.getElementById('resultsPanel').classList.remove('hidden');
+            document.getElementById('totalVehicles').textContent = geojsonData.features.length.toLocaleString();
+            document.getElementById('peakHour').textContent = '8:00 AM';
+            document.getElementById('avgSpeed').textContent = '32 mph';
+        }
+        
+        function exportCSV() {
+            alert('CSV export would download here');
+        }
+        
+        function exportPDF() {
+            alert('PDF report would download here');
+        }
+        
+        // Drag and drop
+        ['geojsonUpload', 'pngUpload'].forEach(id => {
+            const el = document.getElementById(id);
+            el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('dragover'); });
+            el.addEventListener('dragleave', () => el.classList.remove('dragover'));
+            el.addEventListener('drop', e => {
+                e.preventDefault();
+                el.classList.remove('dragover');
+                const input = el.querySelector('input');
+                input.files = e.dataTransfer.files;
+                input.dispatchEvent(new Event('change'));
+            });
+        });
+    </script>
+</body>
+</html>
